@@ -1,2 +1,2 @@
-# next-lwa
-opennext / sst
+# next-infra
+fargate / opennext / lwa

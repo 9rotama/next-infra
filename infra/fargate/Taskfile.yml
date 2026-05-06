@@ -1,0 +1,116 @@
+version: '3'
+
+vars:
+  APP_DIR: ../../app
+  IMAGE_NAME: next-fargate-app
+  # terraform output を遅延評価 (タスク実行時に取得)
+  TF_REGION:
+    sh: terraform output -raw region 2>/dev/null || echo ""
+  TF_ACCOUNT:
+    sh: terraform output -raw aws_account_id 2>/dev/null || echo ""
+  TF_REPO:
+    sh: terraform output -raw ecr_repository_url 2>/dev/null || echo ""
+  TF_CLUSTER:
+    sh: terraform output -raw ecs_cluster 2>/dev/null || echo ""
+  TF_SERVICE:
+    sh: terraform output -raw ecs_service 2>/dev/null || echo ""
+  TF_LOGS:
+    sh: terraform output -raw log_group 2>/dev/null || echo ""
+  TF_CF:
+    sh: terraform output -raw cloudfront_domain 2>/dev/null || echo ""
+  TF_ALB:
+    sh: terraform output -raw alb_dns 2>/dev/null || echo ""
+
+tasks:
+  default:
+    desc: タスク一覧を表示
+    cmds:
+      - task --list
+    silent: true
+
+  init:
+    desc: terraform init
+    cmds:
+      - terraform init
+
+  plan:
+    desc: terraform plan
+    cmds:
+      - terraform plan
+
+  bootstrap:
+    desc: ECR だけ先に作る (初回デプロイ用)
+    cmds:
+      - terraform apply -target=aws_ecr_repository.app -target=aws_ecr_lifecycle_policy.app
+
+  apply:
+    desc: terraform apply (フル)
+    cmds:
+      - terraform apply
+
+  ecr-login:
+    desc: ECR に docker login
+    cmds:
+      - |
+        aws ecr get-login-password --region {{.TF_REGION}} \
+          | docker login --username AWS --password-stdin \
+              {{.TF_ACCOUNT}}.dkr.ecr.{{.TF_REGION}}.amazonaws.com
+
+  build:
+    desc: Docker イメージをビルド (linux/amd64)
+    cmds:
+      - docker build --platform=linux/amd64 -t {{.IMAGE_NAME}}:latest {{.APP_DIR}}
+
+  push:
+    desc: ECR に push
+    cmds:
+      - docker tag {{.IMAGE_NAME}}:latest {{.TF_REPO}}:latest
+      - docker push {{.TF_REPO}}:latest
+
+  redeploy:
+    desc: ECS service を強制再起動して新イメージを pull
+    cmds:
+      - |
+        aws ecs update-service \
+          --cluster {{.TF_CLUSTER}} \
+          --service {{.TF_SERVICE}} \
+          --force-new-deployment \
+          --region {{.TF_REGION}} \
+          --no-cli-pager > /dev/null
+      - echo "Forced new deployment on {{.TF_SERVICE}}"
+
+  deploy:
+    desc: build → push → 強制再デプロイ (一気通貫)
+    cmds:
+      - task: ecr-login
+      - task: build
+      - task: push
+      - task: redeploy
+
+  logs:
+    desc: ECS タスクのログを tail
+    cmds:
+      - aws logs tail {{.TF_LOGS}} --follow --region {{.TF_REGION}}
+
+  status:
+    desc: ECS service の状態確認
+    cmds:
+      - |
+        aws ecs describe-services \
+          --cluster {{.TF_CLUSTER}} \
+          --services {{.TF_SERVICE}} \
+          --region {{.TF_REGION}} \
+          --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[].{status:status,rollout:rolloutState,taskDef:taskDefinition}}' \
+          --output table
+
+  urls:
+    desc: アクセス用 URL を表示
+    silent: true
+    cmds:
+      - 'echo "ALB (HTTP):         http://{{.TF_ALB}}"'
+      - 'echo "CloudFront (HTTPS): https://{{.TF_CF}}"'
+
+  destroy:
+    desc: 全リソース削除
+    cmds:
+      - terraform destroy
