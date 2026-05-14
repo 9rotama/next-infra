@@ -16,6 +16,21 @@ const demos = [
     title: "ISR (Incremental Static Regeneration)",
     desc: "revalidate / on-demand revalidation の挙動を確認",
   },
+  {
+    href: "/demos/route-handlers",
+    title: "Route Handlers",
+    desc: "GET/POST API、cache・runtime切替、ストリーミングレスポンス",
+  },
+  {
+    href: "/demos/server-actions",
+    title: "Server Actions",
+    desc: "Form / useActionState / Optimistic UI",
+  },
+  {
+    href: "/demos/middleware",
+    title: "Middleware (proxy)",
+    desc: "リクエスト書き換え・rewrite/redirect・ヘッダ付与",
+  },
 ]
 
 export default function Page() {
