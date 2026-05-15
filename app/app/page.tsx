@@ -1,19 +1,58 @@
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+
+const demos = [
+  {
+    href: "/demos/image",
+    title: "Image Optimization",
+    desc: "next/image: remote / local / priority / blur placeholder / responsive sizes",
+  },
+  {
+    href: "/demos/streaming",
+    title: "Streaming (Suspense)",
+    desc: "Server Components が遅延データを Suspense でストリーミング配信",
+  },
+  {
+    href: "/demos/isr",
+    title: "ISR (Incremental Static Regeneration)",
+    desc: "revalidate / on-demand revalidation の挙動を確認",
+  },
+  {
+    href: "/demos/route-handlers",
+    title: "Route Handlers",
+    desc: "GET/POST API、cache・runtime切替、ストリーミングレスポンス",
+  },
+  {
+    href: "/demos/server-actions",
+    title: "Server Actions",
+    desc: "Form / useActionState / Optimistic UI",
+  },
+  {
+    href: "/demos/middleware",
+    title: "Middleware (proxy)",
+    desc: "リクエスト書き換え・rewrite/redirect・ヘッダ付与",
+  },
+]
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
+    <div className="mx-auto max-w-2xl p-8">
+      <h1 className="text-2xl font-semibold">Next.js features demo</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        インフラ上で Next.js の挙動を試すためのページ集にゃ。
+      </p>
+      <ul className="mt-8 flex flex-col gap-3">
+        {demos.map((d) => (
+          <li key={d.href}>
+            <Link
+              href={d.href}
+              className="block rounded-lg border p-4 transition-colors hover:bg-accent"
+            >
+              <div className="font-medium">{d.title}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{d.desc}</div>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
