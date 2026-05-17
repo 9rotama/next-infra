@@ -53,7 +53,7 @@ resource "aws_lambda_function" "server" {
 resource "aws_lambda_function_url" "server" {
   function_name      = aws_lambda_function.server.function_name
   authorization_type = "NONE"
-  invoke_mode        = "BUFFERED"
+  invoke_mode        = "RESPONSE_STREAM" # open-next.config.ts の aws-lambda-streaming と対
 }
 
 # ---- image optimization ----
