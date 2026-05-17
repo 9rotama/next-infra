@@ -41,8 +41,8 @@ resource "aws_s3_bucket_policy" "assets" {
 resource "aws_dynamodb_table" "cache" {
   name         = "${local.name_prefix}-cache"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "path"
-  range_key    = "tag"
+  hash_key     = "tag"
+  range_key    = "path"
 
   attribute {
     name = "path"
@@ -59,9 +59,12 @@ resource "aws_dynamodb_table" "cache" {
     type = "N"
   }
 
+  # 公式実装のアクセスパターンに合わせる:
+  #   base table : hash=tag  / range=path  → getByTag (tag からパス逆引き)
+  #   GSI        : hash=path / range=revalidatedAt → getByPath / isStale
   global_secondary_index {
     name            = "revalidate"
-    hash_key        = "tag"
+    hash_key        = "path"
     range_key       = "revalidatedAt"
     projection_type = "ALL"
   }

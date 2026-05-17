@@ -120,7 +120,7 @@ data "aws_iam_policy_document" "dynamodb_provider" {
   }
   statement {
     sid       = "Dynamo"
-    actions   = ["dynamodb:PutItem", "dynamodb:BatchWriteItem", "dynamodb:DescribeTable"]
+    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:BatchWriteItem", "dynamodb:DescribeTable"]
     resources = [aws_dynamodb_table.cache.arn]
   }
 }
