@@ -52,7 +52,7 @@ resource "aws_lambda_function" "server" {
 
 resource "aws_lambda_function_url" "server" {
   function_name      = aws_lambda_function.server.function_name
-  authorization_type = "NONE"
+  authorization_type = "AWS_IAM" # CloudFront OAC が SigV4 署名して呼ぶ
   invoke_mode        = "RESPONSE_STREAM" # open-next.config.ts の aws-lambda-streaming と対
 }
 
@@ -78,7 +78,7 @@ resource "aws_lambda_function" "image" {
 
 resource "aws_lambda_function_url" "image" {
   function_name      = aws_lambda_function.image.function_name
-  authorization_type = "NONE"
+  authorization_type = "AWS_IAM" # CloudFront OAC が SigV4 署名して呼ぶ
   invoke_mode        = "BUFFERED"
 }
 
@@ -124,14 +124,14 @@ resource "aws_lambda_function" "dynamodb_provider" {
   }
 }
 
-# CloudFront から Function URL を呼べるようにする権限。
+# CloudFront (OAC) だけが SigV4 署名して Function URL を呼べる権限。
 resource "aws_lambda_permission" "server_url" {
   statement_id           = "AllowCloudFrontServer"
   action                 = "lambda:InvokeFunctionUrl"
   function_name          = aws_lambda_function.server.function_name
   principal              = "cloudfront.amazonaws.com"
   source_arn             = aws_cloudfront_distribution.main.arn
-  function_url_auth_type = "NONE"
+  function_url_auth_type = "AWS_IAM"
 }
 
 resource "aws_lambda_permission" "image_url" {
@@ -140,5 +140,23 @@ resource "aws_lambda_permission" "image_url" {
   function_name          = aws_lambda_function.image.function_name
   principal              = "cloudfront.amazonaws.com"
   source_arn             = aws_cloudfront_distribution.main.arn
-  function_url_auth_type = "NONE"
+  function_url_auth_type = "AWS_IAM"
+}
+
+# OAC 署名リクエストには InvokeFunctionUrl に加えて InvokeFunction も必要
+# (AWS ドキュメント: Restrict access to a Lambda function URL origin)。
+resource "aws_lambda_permission" "server_invoke" {
+  statement_id  = "AllowCloudFrontServerInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.server.function_name
+  principal     = "cloudfront.amazonaws.com"
+  source_arn    = aws_cloudfront_distribution.main.arn
+}
+
+resource "aws_lambda_permission" "image_invoke" {
+  statement_id  = "AllowCloudFrontImageInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.image.function_name
+  principal     = "cloudfront.amazonaws.com"
+  source_arn    = aws_cloudfront_distribution.main.arn
 }

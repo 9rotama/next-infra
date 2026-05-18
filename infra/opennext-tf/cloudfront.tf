@@ -44,6 +44,14 @@ resource "aws_cloudfront_origin_access_control" "assets" {
   signing_protocol                  = "sigv4"
 }
 
+# Lambda Function URL (AuthType=AWS_IAM) を SigV4 署名して呼ぶための OAC。
+resource "aws_cloudfront_origin_access_control" "lambda" {
+  name                              = "${local.name_prefix}-lambda"
+  origin_access_control_origin_type = "lambda"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
 locals {
   server_domain = replace(replace(aws_lambda_function_url.server.function_url, "https://", ""), "/", "")
   image_domain  = replace(replace(aws_lambda_function_url.image.function_url, "https://", ""), "/", "")
@@ -63,8 +71,9 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   origin {
-    domain_name = local.server_domain
-    origin_id   = "lambda-server"
+    domain_name              = local.server_domain
+    origin_id                = "lambda-server"
+    origin_access_control_id = aws_cloudfront_origin_access_control.lambda.id
     custom_origin_config {
       http_port              = 80
       https_port             = 443
@@ -74,8 +83,9 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   origin {
-    domain_name = local.image_domain
-    origin_id   = "lambda-image"
+    domain_name              = local.image_domain
+    origin_id                = "lambda-image"
+    origin_access_control_id = aws_cloudfront_origin_access_control.lambda.id
     custom_origin_config {
       http_port              = 80
       https_port             = 443
