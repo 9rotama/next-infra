@@ -51,8 +51,9 @@ resource "aws_lambda_function" "server" {
 }
 
 resource "aws_lambda_function_url" "server" {
-  function_name      = aws_lambda_function.server.function_name
-  authorization_type = "AWS_IAM" # CloudFront OAC が SigV4 署名して呼ぶ
+  function_name = aws_lambda_function.server.function_name
+  # Server Actions/POST は body 付きで OAC SigV4 署名と両立しないため公開。
+  authorization_type = "NONE"
   invoke_mode        = "RESPONSE_STREAM" # open-next.config.ts の aws-lambda-streaming と対
 }
 
@@ -124,15 +125,25 @@ resource "aws_lambda_function" "dynamodb_provider" {
   }
 }
 
-# CloudFront (OAC) だけが SigV4 署名して Function URL を呼べる権限。
+# server: Server Actions(POST) のため公開 (AuthType=NONE)。
+# 2025-10 以降の Function URL は InvokeFunctionUrl と InvokeFunction の両方が必須
+# (AWS: Control access to Lambda function URLs)。欠けると AuthType=NONE でも 403。
 resource "aws_lambda_permission" "server_url" {
-  statement_id           = "AllowCloudFrontServer"
+  statement_id           = "AllowPublicInvokeServerUrl"
   action                 = "lambda:InvokeFunctionUrl"
   function_name          = aws_lambda_function.server.function_name
-  principal              = "cloudfront.amazonaws.com"
-  source_arn             = aws_cloudfront_distribution.main.arn
-  function_url_auth_type = "AWS_IAM"
+  principal              = "*"
+  function_url_auth_type = "NONE"
 }
+
+resource "aws_lambda_permission" "server_invoke" {
+  statement_id  = "AllowPublicInvokeServerFn"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.server.function_name
+  principal     = "*"
+}
+
+# image: GET 専用なので CloudFront OAC (SigV4) で非公開維持。
 
 resource "aws_lambda_permission" "image_url" {
   statement_id           = "AllowCloudFrontImage"
@@ -144,15 +155,7 @@ resource "aws_lambda_permission" "image_url" {
 }
 
 # OAC 署名リクエストには InvokeFunctionUrl に加えて InvokeFunction も必要
-# (AWS ドキュメント: Restrict access to a Lambda function URL origin)。
-resource "aws_lambda_permission" "server_invoke" {
-  statement_id  = "AllowCloudFrontServerInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.server.function_name
-  principal     = "cloudfront.amazonaws.com"
-  source_arn    = aws_cloudfront_distribution.main.arn
-}
-
+# (AWS ドキュメント: Restrict access to a Lambda function URL origin)。image のみ。
 resource "aws_lambda_permission" "image_invoke" {
   statement_id  = "AllowCloudFrontImageInvoke"
   action        = "lambda:InvokeFunction"

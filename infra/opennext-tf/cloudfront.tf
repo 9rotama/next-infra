@@ -44,6 +44,24 @@ resource "aws_cloudfront_origin_access_control" "assets" {
   signing_protocol                  = "sigv4"
 }
 
+# Server Actions の CSRF チェック (Origin vs Host) を通すため、
+# viewer-request で x-forwarded-host にビューワの Host を載せ替える。
+# 参照: OpenNext 公式 Workaround / vercel/next.js#58295
+resource "aws_cloudfront_function" "x_forwarded_host" {
+  name    = "${local.name_prefix}-xfh"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = <<-JS
+    function handler(event) {
+      var request = event.request;
+      if (request.headers.host) {
+        request.headers['x-forwarded-host'] = { value: request.headers.host.value };
+      }
+      return request;
+    }
+  JS
+}
+
 # Lambda Function URL (AuthType=AWS_IAM) を SigV4 署名して呼ぶための OAC。
 resource "aws_cloudfront_origin_access_control" "lambda" {
   name                              = "${local.name_prefix}-lambda"
@@ -71,9 +89,9 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   origin {
-    domain_name              = local.server_domain
-    origin_id                = "lambda-server"
-    origin_access_control_id = aws_cloudfront_origin_access_control.lambda.id
+    domain_name = local.server_domain
+    origin_id   = "lambda-server"
+    # server は AuthType=NONE (Server Actions のため) なので OAC 署名なし。
     custom_origin_config {
       http_port              = 80
       https_port             = 443
@@ -104,6 +122,12 @@ resource "aws_cloudfront_distribution" "main" {
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+    # OpenNext 公式 workaround: Server Actions の Origin/Host 不一致対策。
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.x_forwarded_host.arn
+    }
   }
 
   # ビルド済み静的アセット → S3
