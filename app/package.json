@@ -3,11 +3,12 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@10.26.2",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "open-next:build": "open-next build",
+    "open-next:build": "open-next build && find .open-next -type l ! -exec test -e {} \\; -print -delete",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"
