@@ -7,8 +7,8 @@ data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
 
-data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
-  name = "Managed-AllViewerExceptHostHeader"
+data "aws_cloudfront_origin_request_policy" "all_viewer" {
+  name = "Managed-AllViewer"
 }
 
 resource "aws_cloudfront_distribution" "main" {
@@ -39,7 +39,7 @@ resource "aws_cloudfront_distribution" "main" {
     compress               = true
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
   }
 
   # 静的アセットは積極的にキャッシュ
@@ -52,7 +52,7 @@ resource "aws_cloudfront_distribution" "main" {
     compress               = true
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.optimized.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
   }
 
   restrictions {

@@ -1,0 +1,107 @@
+version: '3'
+
+vars:
+  APP_DIR: ../../app
+  OPEN_NEXT_DIR: ../../app/.open-next
+  # terraform output を遅延評価 (タスク実行時に取得)
+  TF_REGION:
+    sh: terraform output -raw region 2>/dev/null || echo ""
+  TF_BUCKET:
+    sh: terraform output -raw assets_bucket 2>/dev/null || echo ""
+  TF_CACHE_PREFIX:
+    sh: terraform output -raw cache_key_prefix 2>/dev/null || echo ""
+  TF_CF:
+    sh: terraform output -raw cloudfront_domain 2>/dev/null || echo ""
+  TF_CF_ID:
+    sh: terraform output -raw cloudfront_distribution_id 2>/dev/null || echo ""
+  TF_DDB_FN:
+    sh: terraform output -raw dynamodb_provider_function 2>/dev/null || echo ""
+
+tasks:
+  default:
+    desc: タスク一覧を表示
+    cmds:
+      - task --list
+    silent: true
+
+  init:
+    desc: terraform init
+    cmds:
+      - terraform init
+
+  plan:
+    desc: terraform plan
+    cmds:
+      - terraform plan
+
+  build:
+    desc: OpenNext ビルド (.open-next を生成)
+    dir: '{{.APP_DIR}}'
+    cmds:
+      - pnpm open-next:build
+
+  apply:
+    desc: terraform apply (Lambda コードは zip ハッシュで自動更新)
+    cmds:
+      - terraform apply
+
+  upload-assets:
+    desc: 静的アセットと ISR キャッシュを S3 へ同期
+    cmds:
+      - aws s3 sync {{.OPEN_NEXT_DIR}}/assets s3://{{.TF_BUCKET}} --delete --region {{.TF_REGION}}
+      - aws s3 sync {{.OPEN_NEXT_DIR}}/cache s3://{{.TF_BUCKET}}/{{.TF_CACHE_PREFIX}} --delete --region {{.TF_REGION}}
+
+  seed-cache:
+    desc: タグキャッシュを DynamoDB に初期投入 (dynamodb-provider を1回 invoke)
+    cmds:
+      - |
+        aws lambda invoke \
+          --function-name {{.TF_DDB_FN}} \
+          --region {{.TF_REGION}} \
+          --cli-binary-format raw-in-base64-out \
+          --payload '{}' \
+          --no-cli-pager /dev/stdout
+
+  invalidate:
+    desc: CloudFront キャッシュを全削除
+    cmds:
+      - |
+        aws cloudfront create-invalidation \
+          --distribution-id {{.TF_CF_ID}} \
+          --paths '/*' \
+          --region {{.TF_REGION}} \
+          --no-cli-pager > /dev/null
+      - echo "Invalidation created"
+
+  deploy:
+    desc: build → apply → アセット同期 → タグ初期化 → invalidation (一気通貫)
+    cmds:
+      - task: build
+      - task: apply
+      - task: upload-assets
+      - task: seed-cache
+      - task: invalidate
+
+  redeploy:
+    desc: コード変更だけ反映 (build → apply → 同期 → invalidation)
+    cmds:
+      - task: build
+      - task: apply
+      - task: upload-assets
+      - task: invalidate
+
+  url:
+    desc: アクセス用 URL を表示
+    silent: true
+    cmds:
+      - 'echo "CloudFront (HTTPS): https://{{.TF_CF}}"'
+
+  logs:
+    desc: server Lambda のログを tail
+    cmds:
+      - aws logs tail /aws/lambda/$(terraform output -raw server_function) --follow --region {{.TF_REGION}}
+
+  destroy:
+    desc: 全リソース削除
+    cmds:
+      - terraform destroy
